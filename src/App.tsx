@@ -4,6 +4,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { AdventureHUD } from './components/game/AdventureHUD';
 import { ArcadeMinigameModal } from './components/game/ArcadeMinigameModal';
 import { AskHerOutModal } from './components/game/AskHerOutModal';
@@ -521,6 +522,9 @@ export default function App() {
           onClose={() => setAskHerOutOpen(false)}
         />
       )}
+
+      {/* Vercel Web Analytics */}
+      <Analytics />
     </main>
   );
 }
