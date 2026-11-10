@@ -18,6 +18,8 @@ export type PhotoBoothFrameStyle =
 
 export type PhotoBoothTone =
   | 'classic-bw'
+  | 'bw'
+  | 'normal'
   | 'noir-contrast'
   | 'warm-silver'
   | 'soft-grain'

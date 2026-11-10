@@ -33,10 +33,25 @@ const MOOD_CHORDS: Record<MoodId, number[][]> = {
   ],
 };
 
+export const ONLINE_AUDIO_TRACKS: Partial<
+  Record<MoodId, { title: string; artist: string; url: string }>
+> = {
+  'velvet-scientist': {
+    title: 'Always N Forever',
+    artist: 'Mariah the Scientist ft. Lil Baby',
+    url: 'https://archive.org/download/VA-DJ_Triple_Exe-The_Passion_Of_RandB_142/03-Mariah%20The%20Scientist%20Ft.%20Lil%20Baby-Always%20N%20Forever.mp3',
+  },
+  'daydream-grande': {
+    title: 'Ariana Grande R&B Mashup',
+    artist: 'Ariana Grande',
+    url: 'https://archive.org/download/ariana-grande-x-bazzi-x-blackbear-mashup/Ariana%20Grande%20x%20Bazzi%20x%20Blackbear%20mashup.mp3',
+  },
+};
+
 /**
- * Cozy Web Audio synthesizer for Melbourne Dreamland.
- * Provides toggleable (M) ambient & Vinyl Cafe music moods plus gentle UI, tram bell,
- * Sunny bark, scrapbook paper, and arcade minigame sound effects with zero external audio files.
+ * Cozy Web Audio synthesizer & online stream player for Melbourne Dreamland.
+ * Plays authentic online audio streams for Mariah the Scientist and Ariana Grande,
+ * with synthesized ambient Rhodes chords as offline/lo-fi fallback.
  */
 export class AudioManager {
   private ctx: AudioContext | null = null;
@@ -45,6 +60,7 @@ export class AudioManager {
   private chordIndex = 0;
   private loopTimer: number | null = null;
   private started = false;
+  private streamElement: HTMLAudioElement | null = null;
 
   constructor(initialMuted = false, initialMood: MoodId = 'fitzroy-gold') {
     this.muted = initialMuted;
@@ -68,6 +84,9 @@ export class AudioManager {
       this.started = true;
       this.startAmbientLoop();
     }
+    if (this.streamElement && !this.muted) {
+      this.streamElement.play().catch(() => {});
+    }
   }
 
   public isMuted(): boolean {
@@ -76,6 +95,14 @@ export class AudioManager {
 
   public setMuted(muted: boolean): void {
     this.muted = muted;
+    if (this.streamElement) {
+      this.streamElement.muted = muted;
+      if (muted) {
+        this.streamElement.pause();
+      } else {
+        this.streamElement.play().catch(() => {});
+      }
+    }
     if (!muted) {
       this.unlockOnUserGesture();
     }
@@ -86,11 +113,39 @@ export class AudioManager {
     return this.muted;
   }
 
+  public playOnlineTrack(url: string, loop = true): void {
+    try {
+      if (!this.streamElement) {
+        this.streamElement = new Audio();
+        this.streamElement.crossOrigin = 'anonymous';
+      }
+      this.streamElement.src = url;
+      this.streamElement.loop = loop;
+      this.streamElement.volume = 0.75;
+      this.streamElement.muted = this.muted;
+      if (!this.muted) {
+        this.streamElement.play().catch(() => {});
+      }
+    } catch {
+      // Stream fallback
+    }
+  }
+
   public setMood(mood: MoodId): void {
     this.currentMood = mood;
     this.chordIndex = 0;
     this.unlockOnUserGesture();
     this.playVinylDrop();
+
+    const track = ONLINE_AUDIO_TRACKS[mood];
+    if (track) {
+      this.playOnlineTrack(track.url, true);
+    } else {
+      if (this.streamElement) {
+        this.streamElement.pause();
+        this.streamElement.src = '';
+      }
+    }
   }
 
   public getMood(): MoodId {
