@@ -1,0 +1,6 @@
+{
+  "name": "Melbourne Dreamland",
+  "description": "An explorable handcrafted 2.5D isometric Melbourne game environment featuring five connected districts, heritage architecture, laneways, moving trams, Yarra River waterfront, and Royal Botanic Gardens.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
