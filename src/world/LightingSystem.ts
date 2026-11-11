@@ -109,22 +109,6 @@ export class LightingSystem {
         scene.fog.density = 0.0022;
       }
       for (const pl of this.lanewayPointLights) pl.intensity = 4.2;
-    } else if (preset === 'sunny-afternoon') {
-      this.sunOffset.set(-46, 98, 42);
-      this.sunLight.color.setHex(0xfff5e0);
-      this.sunLight.intensity = 2.85;
-      this.hemiLight.color.setHex(0xc2e2fa);
-      this.hemiLight.groundColor.setHex(0x8e7c64);
-      this.hemiLight.intensity = 1.05;
-      this.rimLight.color.setHex(0xd4ecff);
-      this.rimLight.intensity = 0.55;
-      scene.environmentIntensity = 0.65;
-      scene.background = new THREE.Color(0xd5e6f0);
-      if (scene.fog instanceof THREE.FogExp2) {
-        scene.fog.color.setHex(0xd5e6f0);
-        scene.fog.density = 0.0016;
-      }
-      for (const pl of this.lanewayPointLights) pl.intensity = 1.0;
     } else {
       // Laneway Dusk — Warm twilight glow where shop windows, trams, arcade neon & lanterns shine!
       this.sunOffset.set(-88, 30, 62);

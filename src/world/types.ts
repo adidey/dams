@@ -8,7 +8,7 @@ export type DistrictId =
   | 'botanic'
   | 'arcade';
 
-export type LightingPreset = 'golden-hour' | 'sunny-afternoon' | 'laneway-dusk';
+export type LightingPreset = 'golden-hour' | 'laneway-dusk';
 
 export interface DistrictPreset {
   id: DistrictId;

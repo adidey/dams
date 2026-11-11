@@ -772,15 +772,11 @@ export class WorldMaterialLibrary {
     tex.waterNormal.offset.y = (elapsedTime * 0.012) % 1;
   }
 
-  public setEmissiveMood(preset: 'golden-hour' | 'sunny-afternoon' | 'laneway-dusk'): void {
-    const windowScale =
-      preset === 'laneway-dusk' ? 1.38 : preset === 'golden-hour' ? 0.75 : 0.24;
-    const neonScale =
-      preset === 'laneway-dusk' ? 2.65 : preset === 'golden-hour' ? 1.85 : 1.05;
-    const lampScale =
-      preset === 'laneway-dusk' ? 2.55 : preset === 'golden-hour' ? 1.6 : 0.42;
-    const signScale =
-      preset === 'laneway-dusk' ? 0.82 : preset === 'golden-hour' ? 0.3 : 0.1;
+  public setEmissiveMood(preset: 'golden-hour' | 'laneway-dusk'): void {
+    const windowScale = preset === 'laneway-dusk' ? 1.38 : 0.75;
+    const neonScale = preset === 'laneway-dusk' ? 2.65 : 1.85;
+    const lampScale = preset === 'laneway-dusk' ? 2.55 : 1.6;
+    const signScale = preset === 'laneway-dusk' ? 0.82 : 0.3;
 
     this.windowWarmLit.emissiveIntensity = windowScale;
     this.windowAmberCurtain.emissiveIntensity = windowScale * 0.82;

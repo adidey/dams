@@ -33,25 +33,118 @@ const MOOD_CHORDS: Record<MoodId, number[][]> = {
   ],
 };
 
-export const ONLINE_AUDIO_TRACKS: Partial<
-  Record<MoodId, { title: string; artist: string; url: string }>
+export interface MusicTrack {
+  id: string;
+  title: string;
+  artist: string;
+  url: string;
+}
+
+export const ONLINE_AUDIO_TRACKS: Record<
+  string,
+  { title: string; artist: string; url: string }
 > = {
   'velvet-scientist': {
-    title: 'Always N Forever',
-    artist: 'Mariah the Scientist ft. Lil Baby',
-    url: 'https://archive.org/download/VA-DJ_Triple_Exe-The_Passion_Of_RandB_142/03-Mariah%20The%20Scientist%20Ft.%20Lil%20Baby-Always%20N%20Forever.mp3',
+    title: 'Rainy Days',
+    artist: 'Mariah the Scientist',
+    url: '/assets/aistudio/Mariah_the_Scientist_-_Rainy_Days__SPOTISAVER__45afa21f.mp3',
   },
   'daydream-grande': {
-    title: 'Ariana Grande R&B Mashup',
+    title: 'needy',
     artist: 'Ariana Grande',
-    url: 'https://archive.org/download/ariana-grande-x-bazzi-x-blackbear-mashup/Ariana%20Grande%20x%20Bazzi%20x%20Blackbear%20mashup.mp3',
+    url: '/assets/aistudio/Ariana_Grande_-_needy__SPOTISAVER__e6e2dcf3.mp3',
   },
 };
 
+export const MELBOURNE_PLAYLIST: MusicTrack[] = [
+  {
+    id: 'mariah-rainy-days',
+    title: 'Rainy Days',
+    artist: 'Mariah the Scientist',
+    url: '/assets/aistudio/Mariah_the_Scientist_-_Rainy_Days__SPOTISAVER__45afa21f.mp3',
+  },
+  {
+    id: 'mariah-more',
+    title: 'More',
+    artist: 'Mariah the Scientist',
+    url: '/assets/aistudio/Mariah_the_Scientist_-_More__SPOTISAVER__0b9b0506.mp3',
+  },
+  {
+    id: 'sza-saturn',
+    title: 'Saturn',
+    artist: 'SZA',
+    url: '/assets/aistudio/SZA_-_Saturn__SPOTISAVER__ccc5f8fa.mp3',
+  },
+  {
+    id: 'sza-kitchen',
+    title: 'Kitchen',
+    artist: 'SZA',
+    url: '/assets/aistudio/SZA_-_Kitchen__SPOTISAVER__d6b00304.mp3',
+  },
+  {
+    id: 'ariana-love-me-harder',
+    title: 'Love Me Harder',
+    artist: 'Ariana Grande & The Weeknd',
+    url: '/assets/aistudio/Ariana_Grande__The_Weeknd_-_Love_Me_Harder__SPOTISAVER__472314cb.mp3',
+  },
+  {
+    id: 'pinkpantheress-attracted',
+    title: 'Attracted to You',
+    artist: 'PinkPantheress',
+    url: '/assets/aistudio/PinkPantheress_-_Attracted_to_You__SPOTISAVER__4cfd6748.mp3',
+  },
+  {
+    id: 'ariana-needy',
+    title: 'needy',
+    artist: 'Ariana Grande',
+    url: '/assets/aistudio/Ariana_Grande_-_needy__SPOTISAVER__e6e2dcf3.mp3',
+  },
+  {
+    id: 'sza-supermodel',
+    title: 'Supermodel',
+    artist: 'SZA',
+    url: '/assets/aistudio/SZA_-_Supermodel__SPOTISAVER__91d48505.mp3',
+  },
+  {
+    id: 'flo-milli-neva',
+    title: 'Neva',
+    artist: 'Flo Milli & Monaleo',
+    url: '/assets/aistudio/Flo_Milli__Monaleo_-_Neva__feat._Monaleo___SPOTISAVER__71647437.mp3',
+  },
+  {
+    id: 'ariana-break-free',
+    title: 'Break Free',
+    artist: 'Ariana Grande & Zedd',
+    url: '/assets/aistudio/Ariana_Grande__Zedd_-_Break_Free__SPOTISAVER__bc9b4dfe.mp3',
+  },
+  {
+    id: 'sza-scorsese',
+    title: 'Scorsese Baby Daddy',
+    artist: 'SZA',
+    url: '/assets/aistudio/SZA_-_Scorsese_Baby_Daddy__SPOTISAVER__18dae09b.mp3',
+  },
+  {
+    id: 'sza-prom',
+    title: 'Prom',
+    artist: 'SZA',
+    url: '/assets/aistudio/SZA_-_Prom__SPOTISAVER__86460c4f.mp3',
+  },
+];
+
+export interface TrackStatusInfo {
+  track: MusicTrack;
+  index: number;
+  total: number;
+  isPlaying: boolean;
+  isShuffle: boolean;
+  isMuted: boolean;
+}
+
 /**
- * Cozy Web Audio synthesizer & online stream player for Melbourne Dreamland.
- * Plays authentic online audio streams for Mariah the Scientist and Ariana Grande,
- * with synthesized ambient Rhodes chords as offline/lo-fi fallback.
+ * Romantic Melbourne Dreamland Audio Manager:
+ * Plays authentic high-fidelity MP3 soundtrack (Mariah the Scientist, SZA, Ariana Grande,
+ * PinkPantheress, Flo Milli) with shuffle, next/prev skip, auto-play queue,
+ * plus cozy lo-fi synth chords for offline/ambient mode.
  */
 export class AudioManager {
   private ctx: AudioContext | null = null;
@@ -62,9 +155,31 @@ export class AudioManager {
   private started = false;
   private streamElement: HTMLAudioElement | null = null;
 
+  // Real MP3 Playlist Engine
+  private trackIndex = 0;
+  private shuffleEnabled = true;
+  private isUserPlaying = true;
+  private statusListeners: Array<(info: TrackStatusInfo) => void> = [];
+
   constructor(initialMuted = false, initialMood: MoodId = 'fitzroy-gold') {
     this.muted = initialMuted;
     this.currentMood = initialMood;
+  }
+
+  private initAudioElement(): HTMLAudioElement {
+    if (!this.streamElement) {
+      this.streamElement = new Audio();
+      this.streamElement.crossOrigin = 'anonymous';
+      this.streamElement.volume = 0.8;
+      this.streamElement.onended = () => {
+        this.nextTrack();
+      };
+      this.streamElement.onerror = () => {
+        // If an audio file fails to load, gracefully step to next
+        setTimeout(() => this.nextTrack(), 1000);
+      };
+    }
+    return this.streamElement;
   }
 
   public unlockOnUserGesture(): void {
@@ -83,8 +198,10 @@ export class AudioManager {
     if (!this.started) {
       this.started = true;
       this.startAmbientLoop();
+      // Start the MP3 soundtrack!
+      this.playTrack(this.trackIndex);
     }
-    if (this.streamElement && !this.muted) {
+    if (this.streamElement && !this.muted && this.isUserPlaying) {
       this.streamElement.play().catch(() => {});
     }
   }
@@ -99,13 +216,14 @@ export class AudioManager {
       this.streamElement.muted = muted;
       if (muted) {
         this.streamElement.pause();
-      } else {
+      } else if (this.isUserPlaying) {
         this.streamElement.play().catch(() => {});
       }
     }
     if (!muted) {
       this.unlockOnUserGesture();
     }
+    this.notifyStatus();
   }
 
   public toggleMute(): boolean {
@@ -113,21 +231,104 @@ export class AudioManager {
     return this.muted;
   }
 
-  public playOnlineTrack(url: string, loop = true): void {
+  // --- Playlist & Track Controls ---
+  public playTrack(index: number): void {
+    if (index < 0 || index >= MELBOURNE_PLAYLIST.length) {
+      index = 0;
+    }
+    this.trackIndex = index;
+    const track = MELBOURNE_PLAYLIST[index];
+    const audio = this.initAudioElement();
+
     try {
-      if (!this.streamElement) {
-        this.streamElement = new Audio();
-        this.streamElement.crossOrigin = 'anonymous';
-      }
-      this.streamElement.src = url;
-      this.streamElement.loop = loop;
-      this.streamElement.volume = 0.75;
-      this.streamElement.muted = this.muted;
+      audio.src = track.url;
+      audio.muted = this.muted;
+      audio.currentTime = 0;
+      this.isUserPlaying = true;
       if (!this.muted) {
-        this.streamElement.play().catch(() => {});
+        audio.play().catch(() => {
+          // Playback blocked until user gesture
+        });
       }
     } catch {
-      // Stream fallback
+      // Audio playback exception
+    }
+    this.notifyStatus();
+  }
+
+  public nextTrack(): void {
+    if (this.shuffleEnabled && MELBOURNE_PLAYLIST.length > 1) {
+      let nextIdx = this.trackIndex;
+      while (nextIdx === this.trackIndex) {
+        nextIdx = Math.floor(Math.random() * MELBOURNE_PLAYLIST.length);
+      }
+      this.playTrack(nextIdx);
+    } else {
+      const nextIdx = (this.trackIndex + 1) % MELBOURNE_PLAYLIST.length;
+      this.playTrack(nextIdx);
+    }
+  }
+
+  public prevTrack(): void {
+    const prevIdx =
+      (this.trackIndex - 1 + MELBOURNE_PLAYLIST.length) %
+      MELBOURNE_PLAYLIST.length;
+    this.playTrack(prevIdx);
+  }
+
+  public togglePlayPause(): boolean {
+    this.unlockOnUserGesture();
+    const audio = this.initAudioElement();
+    if (this.isUserPlaying && !audio.paused) {
+      audio.pause();
+      this.isUserPlaying = false;
+    } else {
+      audio.play().catch(() => {});
+      this.isUserPlaying = true;
+      this.muted = false;
+    }
+    this.notifyStatus();
+    return this.isUserPlaying;
+  }
+
+  public toggleShuffle(): boolean {
+    this.shuffleEnabled = !this.shuffleEnabled;
+    this.notifyStatus();
+    return this.shuffleEnabled;
+  }
+
+  public getTrackStatus(): TrackStatusInfo {
+    const track = MELBOURNE_PLAYLIST[this.trackIndex] || MELBOURNE_PLAYLIST[0];
+    const isPlaying =
+      this.isUserPlaying &&
+      !this.muted &&
+      Boolean(this.streamElement && !this.streamElement.paused);
+    return {
+      track,
+      index: this.trackIndex,
+      total: MELBOURNE_PLAYLIST.length,
+      isPlaying,
+      isShuffle: this.shuffleEnabled,
+      isMuted: this.muted,
+    };
+  }
+
+  public subscribeStatus(listener: (info: TrackStatusInfo) => void): () => void {
+    this.statusListeners.push(listener);
+    listener(this.getTrackStatus());
+    return () => {
+      this.statusListeners = this.statusListeners.filter((l) => l !== listener);
+    };
+  }
+
+  private notifyStatus(): void {
+    const info = this.getTrackStatus();
+    for (const listener of this.statusListeners) {
+      try {
+        listener(info);
+      } catch {
+        // Listener error
+      }
     }
   }
 
@@ -136,16 +337,6 @@ export class AudioManager {
     this.chordIndex = 0;
     this.unlockOnUserGesture();
     this.playVinylDrop();
-
-    const track = ONLINE_AUDIO_TRACKS[mood];
-    if (track) {
-      this.playOnlineTrack(track.url, true);
-    } else {
-      if (this.streamElement) {
-        this.streamElement.pause();
-        this.streamElement.src = '';
-      }
-    }
   }
 
   public getMood(): MoodId {

@@ -414,7 +414,6 @@ export function MemoryJournalModal({
                 {(
                   [
                     ['golden-hour', 'Golden Hour · Warm Romantic Sunset'],
-                    ['sunny-afternoon', 'Sunny Afternoon · Crisp Botanic Light'],
                     ['laneway-dusk', 'Laneway Dusk · Glowing Neon & Lamps'],
                   ] as const
                 ).map(([presetId, label]) => (

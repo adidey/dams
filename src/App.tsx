@@ -14,6 +14,7 @@ import { PhotoScrapbookModal } from './components/game/PhotoScrapbookModal';
 import { TramSelectorModal } from './components/game/TramSelectorModal';
 import { VinylTurntableModal } from './components/game/VinylTurntableModal';
 import { WorldMapModal } from './components/game/WorldMapModal';
+import { TrackStatusInfo } from './game/AudioManager';
 import { PhotoStorage } from './game/PhotoStorage';
 import { SaveManager } from './game/SaveManager';
 import {
@@ -68,6 +69,7 @@ export default function App() {
   const [photoBoothOpen, setPhotoBoothOpen] = useState(false);
   const [worldMapOpen, setWorldMapOpen] = useState(false);
   const [askHerOutOpen, setAskHerOutOpen] = useState(false);
+  const [trackStatus, setTrackStatus] = useState<TrackStatusInfo | null>(null);
   const [journalTab, setJournalTab] = useState<
     'chapters' | 'keepsakes' | 'gallery' | 'settings' | null
   >(null);
@@ -188,13 +190,16 @@ export default function App() {
       }
     ).__MELBOURNE_DREAMLAND_WORLD__ = sceneInstance;
 
+    const unsubAudio = sceneInstance.audio.subscribeStatus(setTrackStatus);
+
     return () => {
+      unsubAudio();
       sceneInstance.dispose();
       worldRef.current = null;
     };
   }, [handleInteractInteriorAction, handleInteractPOI, handlePetSunnyRecord]);
 
-  // Global Keyboard Shortcuts: M (Music), J (Journal), I (Keepsakes), Esc (Exit Interior / Pause Menu)
+  // Global Keyboard Shortcuts: M (Music Mute), N (Next Track), J (Journal), I (Keepsakes), Esc (Exit Interior / Pause Menu)
   const handleToggleMute = useCallback(() => {
     const world = worldRef.current;
     if (!world) return;
@@ -215,6 +220,12 @@ export default function App() {
       if (k === 'm' && !e.repeat) {
         e.preventDefault();
         handleToggleMute();
+        return;
+      }
+
+      if (k === 'n' && !e.repeat) {
+        e.preventDefault();
+        worldRef.current?.audio.nextTrack();
         return;
       }
 
@@ -377,17 +388,21 @@ export default function App() {
         saveData={saveData}
         portraits={portraits}
         anyModalOpen={anyModalOpen}
+        trackStatus={trackStatus}
         onTriggerInteract={() =>
           worldRef.current?.actorSystem.triggerContextualInteraction()
         }
         onInteractInteriorAction={handleInteractInteriorAction}
-        onPetSunny={() => worldRef.current?.actorSystem.petSunnyNow()}
         onOpenJournal={(tab) => setJournalTab(tab)}
         onOpenPhotoBooth={() => setPhotoBoothOpen(true)}
-        onOpenAskHerOut={() => setAskHerOutOpen(true)}
         onOpenMap={() => setWorldMapOpen(true)}
         onOpenPause={() => setJournalTab('settings')}
         onToggleMute={handleToggleMute}
+        onTogglePlay={() => worldRef.current?.audio.togglePlayPause()}
+        onNextTrack={() => worldRef.current?.audio.nextTrack()}
+        onPrevTrack={() => worldRef.current?.audio.prevTrack()}
+        onToggleShuffle={() => worldRef.current?.audio.toggleShuffle()}
+        onSelectTrack={(idx) => worldRef.current?.audio.playTrack(idx)}
         onFocusCharacter={() => worldRef.current?.focusCharacter()}
         onSelectDistrict={(id) => worldRef.current?.selectDistrict(id)}
         onChangeLighting={(preset) => {

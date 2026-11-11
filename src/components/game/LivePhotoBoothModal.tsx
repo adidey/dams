@@ -173,13 +173,6 @@ export function LivePhotoBoothModal({
     setCameraActive(false);
   }, []);
 
-  useEffect(() => {
-    startCamera();
-    return () => {
-      stopCamera();
-    };
-  }, [startCamera, stopCamera]);
-
   // Capture single frame from webcam OR romantic fallback illustration
   const captureFrameSource = useCallback((): string => {
     const video = videoRef.current;
@@ -243,8 +236,32 @@ export function LivePhotoBoothModal({
     return canvas.toDataURL('image/png');
   }, [cameraActive]);
 
-  // Trigger countdown shoot
-  const triggerShutter = useCallback(() => {
+  useEffect(() => {
+    // Generate an initial frame immediately so preview card is pre-composed and never empty
+    const frame = captureFrameSource();
+    setCapturedFrames(format === 'strip' ? [frame, frame, frame, frame] : [frame]);
+    startCamera();
+    return () => {
+      stopCamera();
+    };
+  }, [captureFrameSource, format, startCamera, stopCamera]);
+
+  // Instant shutter snap with audio & flash (no waiting or freezing)
+  const triggerInstantShutter = useCallback(() => {
+    playShutterSound();
+    setFlashActive(true);
+    setTimeout(() => setFlashActive(false), 200);
+
+    const frame = captureFrameSource();
+    if (format === 'strip') {
+      setCapturedFrames([frame, frame, frame, frame]);
+    } else {
+      setCapturedFrames([frame]);
+    }
+  }, [captureFrameSource, format, playShutterSound]);
+
+  // Trigger countdown shoot (optional 1s fast timer)
+  const triggerShutterWithTimer = useCallback(() => {
     if (countdown !== null) return;
     const targetCount = format === 'strip' ? 4 : 1;
     setCapturedFrames([]);
@@ -254,7 +271,7 @@ export function LivePhotoBoothModal({
     let currentShot = 0;
 
     const runOneShot = () => {
-      let count = 3;
+      let count = 2;
       setCountdown(count);
       setActiveShotIndex(currentShot);
 
@@ -276,10 +293,10 @@ export function LivePhotoBoothModal({
 
           currentShot += 1;
           if (currentShot < targetCount) {
-            setTimeout(runOneShot, 1100);
+            setTimeout(runOneShot, 600);
           }
         }
-      }, 1000);
+      }, 700);
     };
 
     runOneShot();
@@ -287,12 +304,7 @@ export function LivePhotoBoothModal({
 
   // Instant snap couple portrait without waiting
   const handleSnapInstantCouple = () => {
-    const frame = captureFrameSource();
-    if (format === 'strip') {
-      setCapturedFrames([frame, frame, frame, frame]);
-    } else {
-      setCapturedFrames([frame]);
-    }
+    triggerInstantShutter();
   };
 
   // Compose output strip / polaroid onto canvas
@@ -768,22 +780,31 @@ export function LivePhotoBoothModal({
                 </button>
               </div>
 
-              {/* Shutter Button */}
-              <button
-                type="button"
-                onClick={triggerShutter}
-                disabled={countdown !== null}
-                className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#e69a7b] to-[#df8361] px-6 py-2.5 font-bold text-[#1c1412] shadow-lg transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 cursor-pointer"
-              >
-                <Camera className="h-4 w-4" />
-                <span>
-                  {countdown !== null
-                    ? `Shooting (${countdown}s)…`
-                    : format === 'strip'
-                      ? 'Take 4-Shot Strip'
-                      : 'Snap Polaroid'}
-                </span>
-              </button>
+              {/* Shutter Buttons: Instant Snap & Timer */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={triggerInstantShutter}
+                  className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#e69a7b] to-[#df8361] px-5 py-2.5 font-bold text-[#1c1412] shadow-lg transition-transform hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap"
+                  title="Snap photo strip immediately"
+                >
+                  <Camera className="h-4 w-4" />
+                  <span>
+                    {format === 'strip' ? 'Take 4-Shot Strip' : 'Snap Polaroid'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={triggerShutterWithTimer}
+                  disabled={countdown !== null}
+                  className="flex items-center gap-1.5 rounded-2xl border border-[#e8d5be]/25 bg-[#251d1a] px-3.5 py-2.5 text-xs font-semibold text-[#f5caa0] hover:bg-[#382b26] disabled:opacity-40 cursor-pointer"
+                  title="Shoot with 2-second countdown timer"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-[#f2be72]" />
+                  <span>{countdown !== null ? `${countdown}s…` : 'Timer'}</span>
+                </button>
+              </div>
             </div>
 
             {/* Frame Styles */}

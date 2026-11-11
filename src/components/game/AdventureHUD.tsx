@@ -7,11 +7,18 @@ import {
   Disc3,
   Heart,
   HelpCircle,
+  ListMusic,
   LogOut,
   Map as MapIcon,
   MapPin,
+  Music,
+  Pause,
+  Play,
   RotateCcw,
   RotateCw,
+  Shuffle,
+  SkipBack,
+  SkipForward,
   SlidersHorizontal,
   Sparkles,
   TrainFront,
@@ -22,6 +29,10 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import {
+  MELBOURNE_PLAYLIST,
+  TrackStatusInfo,
+} from '../../game/AudioManager';
 import { CORE_MEMORY_IDS, POINTS_OF_INTEREST } from '../../game/config/locationsConfig';
 import {
   GameSaveData,
@@ -41,17 +52,21 @@ interface AdventureHUDProps {
     sunny: string;
   } | null;
   anyModalOpen: boolean;
+  trackStatus: TrackStatusInfo | null;
   onTriggerInteract: () => void;
   onInteractInteriorAction: (
     actionType: InteriorInteractablePrompt['actionType']
   ) => void;
-  onPetSunny: () => void;
   onOpenJournal: (initialTab: 'chapters' | 'keepsakes') => void;
   onOpenPhotoBooth: () => void;
-  onOpenAskHerOut: () => void;
   onOpenMap: () => void;
   onOpenPause: () => void;
   onToggleMute: () => void;
+  onTogglePlay: () => void;
+  onNextTrack: () => void;
+  onPrevTrack: () => void;
+  onToggleShuffle: () => void;
+  onSelectTrack: (index: number) => void;
   onFocusCharacter: () => void;
   onSelectDistrict: (id: DistrictId) => void;
   onChangeLighting: (preset: LightingPreset) => void;
@@ -76,15 +91,19 @@ export function AdventureHUD({
   saveData,
   portraits,
   anyModalOpen,
+  trackStatus,
   onTriggerInteract,
   onInteractInteriorAction,
-  onPetSunny,
   onOpenJournal,
   onOpenPhotoBooth,
-  onOpenAskHerOut,
   onOpenMap,
   onOpenPause,
   onToggleMute,
+  onTogglePlay,
+  onNextTrack,
+  onPrevTrack,
+  onToggleShuffle,
+  onSelectTrack,
   onFocusCharacter,
   onSelectDistrict,
   onChangeLighting,
@@ -94,6 +113,8 @@ export function AdventureHUD({
 }: AdventureHUDProps) {
   // Collapsible Objectives Drawer
   const [objectivesOpen, setObjectivesOpen] = useState(false);
+  // Playlist dropdown
+  const [playlistOpen, setPlaylistOpen] = useState(false);
   // Help Modal / Popover
   const [showHelp, setShowHelp] = useState(false);
 
@@ -134,7 +155,8 @@ export function AdventureHUD({
         ? 'Inside Starlight Coin-Op Arcade'
         : DISTRICT_TITLES[activeDistrict];
 
-  // Hotkey listener for C (Camera/Photobooth), O (Objectives), ? (Help)
+  // Hotkey listener for C (Camera/Photobooth), N (Next Song), O (Objectives), ? (Help)
+  // S key is NOT intercepted so WASD walking is completely free!
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (
@@ -147,9 +169,9 @@ export function AdventureHUD({
       if (k === 'c' && !anyModalOpen) {
         e.preventDefault();
         onOpenPhotoBooth();
-      } else if (k === 'p' && !anyModalOpen) {
+      } else if (k === 'n' && !anyModalOpen) {
         e.preventDefault();
-        onOpenAskHerOut();
+        onNextTrack();
       } else if (k === 'o' && !anyModalOpen) {
         e.preventDefault();
         setObjectivesOpen((prev) => !prev);
@@ -160,7 +182,7 @@ export function AdventureHUD({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [anyModalOpen, onOpenPhotoBooth]);
+  }, [anyModalOpen, onNextTrack, onOpenPhotoBooth]);
 
   return (
     <div className="pointer-events-none fixed inset-0 z-10 select-none overflow-hidden">
@@ -272,23 +294,6 @@ export function AdventureHUD({
                 </button>
               );
             })}
-
-          {/* Pet Sunny prompt */}
-          {game.nearbySunnyPrompt?.visible && (
-            <button
-              type="button"
-              onClick={onPetSunny}
-              style={{
-                transform: `translate3d(${Math.round(game.nearbySunnyPrompt.x)}px, ${Math.round(game.nearbySunnyPrompt.y)}px, 0) translate(-50%, -100%)`,
-              }}
-              className="pointer-events-auto absolute left-0 top-0 flex items-center gap-2 rounded-xl border border-[#f5d07a]/70 bg-[#221b16]/95 px-3 py-1.5 text-xs font-semibold text-[#fff4de] shadow-lg transition-transform duration-150 hover:scale-105 cursor-pointer whitespace-nowrap"
-            >
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-[#eab85c] font-mono text-[11px] font-bold text-[#1f1812]">
-                E
-              </span>
-              <span>Pet Sunny</span>
-            </button>
-          )}
         </div>
       )}
 
@@ -322,16 +327,6 @@ export function AdventureHUD({
             <h1 className="font-['Fraunces'] text-sm font-bold tracking-tight text-[#fbf2e3] whitespace-nowrap">
               Melbourne Dreamland
             </h1>
-            {/* Interactive "Ask Her Out" Romance Pill */}
-            <button
-              type="button"
-              onClick={onOpenAskHerOut}
-              className="flex items-center gap-1 rounded-full bg-[#592231]/85 hover:bg-[#782b3f] px-2 py-0.5 text-[11px] font-semibold text-[#fce6ec] border border-[#f0c2cd]/40 shadow-sm cursor-pointer transition-all hover:scale-105 active:scale-95"
-              title="The Big Question · Ask Damini Out (P)"
-            >
-              <Heart className="h-3 w-3 fill-[#e28ca0] text-[#e28ca0] animate-pulse" />
-              <span>{finalDone ? 'She Said Yes! 💕' : 'Ask Her Out 💕'}</span>
-            </button>
           </div>
 
           <div className="flex items-center gap-1.5 text-[11px] text-[#cbbba7] truncate">
@@ -391,31 +386,11 @@ export function AdventureHUD({
               </span>
               <p className="mt-1 text-xs font-semibold leading-relaxed text-[#fbf2e3]">
                 {finalDone
-                  ? 'She Said Yes! 💕 All Chapters Revisited · Forever Our Melbourne'
+                  ? 'All Chapters Revisited · Free exploration of Melbourne together!'
                   : allCoreDone
                     ? 'Final Overlook Unlocked · Meet at Yarra River Twilight Overlook'
                     : `Explore Melbourne together · Chapter ${currentChapterNumber}: ${currentChapterTitle}`}
               </p>
-
-              {/* Romantic Climax Callout Card */}
-              <div className="mt-2.5 rounded-2xl border border-[#f0c2cd]/35 bg-[#331b25] p-2.5 text-center">
-                <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-[#fce6ed]">
-                  <Heart className="h-3 w-3 fill-[#e28ca0] text-[#e28ca0]" />
-                  <span>The Big Question 💕</span>
-                </div>
-                <p className="mt-0.5 text-[10px] text-[#dfb8c4] leading-snug">
-                  {finalDone
-                    ? 'Damini said YES! Forever your partner in Melbourne.'
-                    : 'Yarra River Twilight Overlook · Ask Damini to be your girlfriend!'}
-                </p>
-                <button
-                  type="button"
-                  onClick={onOpenAskHerOut}
-                  className="mt-2 w-full rounded-xl bg-gradient-to-r from-[#e6738c] to-[#d95973] py-1.5 text-xs font-bold text-white shadow hover:scale-[1.02] active:scale-98 transition-transform cursor-pointer"
-                >
-                  {finalDone ? 'Relive The Proposal 💕' : 'Ask Damini Out Now 💕'}
-                </button>
-              </div>
             </div>
 
             {/* Suggested Next Destination */}
@@ -531,23 +506,122 @@ export function AdventureHUD({
               type="button"
               onClick={onOpenPhotoBooth}
               className="flex items-center gap-1.5 rounded-xl border border-[#e28ca0]/40 bg-[#3d1e27] px-3 py-2 text-xs font-medium text-[#fff2f5] hover:bg-[#522533] transition-colors cursor-pointer whitespace-nowrap"
-              title="Vintage B&W Photo Booth (C)"
+              title="Vintage Photo Booth (C)"
             >
               <Camera className="h-3.5 w-3.5 text-[#e28ca0]" />
               <span className="hidden sm:inline">Photo Booth</span>
               <span className="sm:hidden">Booth</span>
             </button>
 
-            {/* Ask Her Out Romantic Climax (P) */}
-            <button
-              type="button"
-              onClick={onOpenAskHerOut}
-              className="flex items-center gap-1.5 rounded-xl border border-[#f0c2cd]/50 bg-gradient-to-r from-[#592231] to-[#752a3d] px-3.5 py-2 text-xs font-bold text-[#fff3f6] shadow-md hover:scale-105 active:scale-95 transition-transform cursor-pointer whitespace-nowrap"
-              title="Ask Damini Out Under Melbourne Twilight (P)"
-            >
-              <Heart className="h-3.5 w-3.5 fill-[#f2a5b6] text-[#f2a5b6] animate-pulse" />
-              <span>{finalDone ? 'She Said Yes! 💕' : 'Ask Her Out 💕'}</span>
-            </button>
+            {/* Melbourne Dreamland MP3 Jukebox */}
+            <div className="relative flex items-center gap-1.5 rounded-xl border border-[#ebd7bf]/20 bg-[#29201c] px-2.5 py-1 text-xs text-[#f7efe2]">
+              {/* Playlist toggle button with current track info */}
+              <button
+                type="button"
+                onClick={() => setPlaylistOpen((prev) => !prev)}
+                className="flex items-center gap-1.5 text-left text-xs font-semibold text-[#f5caa0] hover:text-[#fff6ea] transition-colors cursor-pointer max-w-[130px] sm:max-w-[190px] truncate"
+                title="Click to view all 12 songs"
+              >
+                <Music className="h-3.5 w-3.5 shrink-0 text-[#e69a7b]" />
+                <span className="truncate">
+                  {trackStatus?.track.title || 'Soundtrack'}
+                </span>
+              </button>
+
+              {/* Controls: Prev, Play/Pause, Next, Shuffle */}
+              <div className="flex items-center gap-0.5 pl-1 border-l border-[#ebd7bf]/15">
+                <button
+                  type="button"
+                  onClick={onPrevTrack}
+                  className="rounded-lg p-1 text-[#cbbba7] hover:bg-[#382b26] hover:text-[#fff5e6] cursor-pointer"
+                  title="Previous track"
+                >
+                  <SkipBack className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onTogglePlay}
+                  className="rounded-lg bg-[#e69a7b] p-1 text-[#1f1613] hover:bg-[#f0ac8e] transition-transform active:scale-95 cursor-pointer"
+                  title={trackStatus?.isPlaying ? 'Pause' : 'Play'}
+                >
+                  {trackStatus?.isPlaying ? (
+                    <Pause className="h-3.5 w-3.5" />
+                  ) : (
+                    <Play className="h-3.5 w-3.5 fill-current" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={onNextTrack}
+                  className="rounded-lg p-1 text-[#cbbba7] hover:bg-[#382b26] hover:text-[#fff5e6] cursor-pointer"
+                  title="Next track (N)"
+                >
+                  <SkipForward className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onToggleShuffle}
+                  className={`rounded-lg p-1 transition-colors cursor-pointer ${
+                    trackStatus?.isShuffle
+                      ? 'text-[#f5caa0] bg-[#3a2721]'
+                      : 'text-[#8c7b6d] hover:bg-[#382b26]'
+                  }`}
+                  title="Toggle Shuffle"
+                >
+                  <Shuffle className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* Playlist Popup Menu */}
+              {playlistOpen && (
+                <div className="absolute bottom-full mb-3 left-0 w-72 rounded-2xl border border-[#ebd7bf]/25 bg-[#1e1715]/98 p-3 shadow-2xl backdrop-blur-md z-40">
+                  <div className="flex items-center justify-between border-b border-[#ebd7bf]/15 pb-2 mb-2">
+                    <span className="font-['Fraunces'] text-xs font-bold text-[#fbf2e3] flex items-center gap-1.5">
+                      <ListMusic className="h-3.5 w-3.5 text-[#e69a7b]" />
+                      <span>Soundtrack Playlist (12 Tracks)</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPlaylistOpen(false)}
+                      className="text-[#baa897] hover:text-[#fff5e6] cursor-pointer"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="max-h-56 overflow-y-auto flex flex-col gap-1 pr-1">
+                    {MELBOURNE_PLAYLIST.map((t, idx) => {
+                      const active = trackStatus?.index === idx;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            onSelectTrack(idx);
+                            setPlaylistOpen(false);
+                          }}
+                          className={`flex items-center justify-between rounded-xl px-2.5 py-1.5 text-left text-xs transition-colors cursor-pointer ${
+                            active
+                              ? 'bg-[#59222c] text-[#fff6ea] font-bold'
+                              : 'text-[#dfd0bc] hover:bg-[#2d231f]'
+                          }`}
+                        >
+                          <div className="truncate mr-2">
+                            <div className="truncate">{t.title}</div>
+                            <div className="text-[10px] text-[#baa897]">{t.artist}</div>
+                          </div>
+                          {active && (
+                            <span className="text-[10px] text-[#f5caa0] font-mono shrink-0">
+                              Playing
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* World Map (M) */}
             <button
@@ -598,29 +672,6 @@ export function AdventureHUD({
                 <RotateCw className="h-3.5 w-3.5" />
               </button>
             </div>
-
-            {/* Lighting / Mood */}
-            <button
-              type="button"
-              onClick={() => {
-                const order: LightingPreset[] = [
-                  'golden-hour',
-                  'sunny-afternoon',
-                  'laneway-dusk',
-                ];
-                const next =
-                  order[(order.indexOf(lightingPreset) + 1) % order.length];
-                onChangeLighting(next);
-              }}
-              title="Cycle Sky Mood"
-              className="rounded-xl border border-[#ebd7bf]/15 bg-[#29201c] px-2.5 py-2 text-xs font-medium text-[#dfd0be] hover:bg-[#382b26] cursor-pointer whitespace-nowrap"
-            >
-              {lightingPreset === 'golden-hour'
-                ? 'Golden Hour'
-                : lightingPreset === 'sunny-afternoon'
-                  ? 'Sunny Day'
-                  : 'Laneway Dusk'}
-            </button>
 
             {/* Audio Mute */}
             <button
@@ -684,6 +735,7 @@ export function AdventureHUD({
             <div><span className="font-mono text-[#f5caa0]">C</span>: Photo Booth</div>
             <div><span className="font-mono text-[#f5caa0]">O</span>: Objectives</div>
             <div><span className="font-mono text-[#f5caa0]">M</span>: Music Toggle</div>
+            <div><span className="font-mono text-[#f5caa0]">N</span>: Next Song</div>
             <div><span className="font-mono text-[#f5caa0]">Esc</span>: Pause Menu</div>
           </div>
         </div>

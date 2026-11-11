@@ -40,7 +40,6 @@ interface EnvironmentHUDProps {
 
 const LIGHTING_OPTIONS: Array<{ id: LightingPreset; label: string }> = [
   { id: 'golden-hour', label: 'Golden Hour' },
-  { id: 'sunny-afternoon', label: 'Afternoon' },
   { id: 'laneway-dusk', label: 'Laneway Dusk' },
 ];
 
