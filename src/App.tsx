@@ -106,12 +106,14 @@ export default function App() {
         worldRef.current?.actorSystem.exitInterior();
       } else if (actionType === 'turntable') {
         setTurntableOpen(true);
-      } else if (actionType === 'minigame-memory') {
-        setActiveMinigame('memory-match');
+      } else if (
+        actionType === 'minigame-tetris' ||
+        actionType === 'minigame-memory' ||
+        actionType === 'minigame-claw'
+      ) {
+        setActiveMinigame('tetris');
       } else if (actionType === 'minigame-cricket') {
         setActiveMinigame('cricket-challenge');
-      } else if (actionType === 'minigame-claw') {
-        setActiveMinigame('claw-machine');
       }
     },
     []
@@ -451,6 +453,12 @@ export default function App() {
         <VinylTurntableModal
           saveData={saveData}
           daminiPortrait={portraits?.damini}
+          trackStatus={trackStatus}
+          onTogglePlay={() => worldRef.current?.audio.togglePlayPause()}
+          onNextTrack={() => worldRef.current?.audio.nextTrack()}
+          onPrevTrack={() => worldRef.current?.audio.prevTrack()}
+          onSelectTrack={(idx) => worldRef.current?.audio.playTrack(idx)}
+          onToggleShuffle={() => worldRef.current?.audio.toggleShuffle()}
           onSelectRecord={handleSelectVinylRecord}
           onToggleMute={handleToggleMute}
           onClose={() => setTurntableOpen(false)}

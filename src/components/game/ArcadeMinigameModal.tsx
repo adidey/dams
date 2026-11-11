@@ -1,17 +1,22 @@
-import { RotateCcw, Sparkles, Trophy, X } from 'lucide-react';
-import { motion } from 'motion/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AudioManager } from '../../game/AudioManager';
 import {
-  GameSaveData,
-  MinigameId,
-  StoredUploadedPhoto,
-} from '../../game/types';
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  RotateCw,
+  Sparkles,
+  Trophy,
+  X,
+  Zap,
+} from 'lucide-react';
+import { motion } from 'motion/react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AudioManager } from '../../game/AudioManager';
+import { GameSaveData, MinigameId, StoredUploadedPhoto } from '../../game/types';
 
 interface ArcadeMinigameModalProps {
   activeGame: MinigameId;
   saveData: GameSaveData;
-  uploadedPhotos: StoredUploadedPhoto[];
+  uploadedPhotos?: StoredUploadedPhoto[];
   audio: AudioManager | null;
   onSwitchGame: (id: MinigameId) => void;
   onRecordResult: (
@@ -23,222 +28,625 @@ interface ArcadeMinigameModalProps {
 }
 
 // ============================================================================
-// MINIGAME A — MEMORY MATCH (Couple Keepsakes + Real Uploaded Photos!)
+// MINIGAME: STARLIGHT TETRIS (Retro 8-Bit Brick Puzzle)
 // ============================================================================
-interface MatchCard {
-  uid: string;
-  pairKey: string;
-  label: string;
-  accent: string;
-  photoSrc?: string;
-  flipped: boolean;
-  matched: boolean;
+const BOARD_WIDTH = 10;
+const BOARD_HEIGHT = 20;
+
+type TetrominoType = 'I' | 'O' | 'T' | 'S' | 'Z' | 'J' | 'L';
+
+interface Piece {
+  type: TetrominoType;
+  shape: number[][];
+  color: string;
+  x: number;
+  y: number;
 }
 
-const BASE_PAIRS = [
-  { key: 'pizza', label: '11" Gnocchi & Slice', accent: '#e6846e' },
-  { key: 'tram', label: 'W-Class Tram 96', accent: '#7bd4a0' },
-  { key: 'sunny', label: 'Sunny Golden Pup', accent: '#f0c465' },
-  { key: 'vinyl', label: 'Velvet R&B Vinyl', accent: '#e896b0' },
-  { key: 'gardens', label: 'Botanic Birthday', accent: '#9fd68b' },
-  { key: 'bibiji', label: 'Bibi Ji Naan & Chai', accent: '#f2ac63' },
-];
+const TETROMINOES: Record<
+  TetrominoType,
+  { shape: number[][]; color: string }
+> = {
+  I: {
+    shape: [
+      [0, 0, 0, 0],
+      [1, 1, 1, 1],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+    ],
+    color: '#38bdf8', // Cyan
+  },
+  O: {
+    shape: [
+      [1, 1],
+      [1, 1],
+    ],
+    color: '#facc15', // Yellow
+  },
+  T: {
+    shape: [
+      [0, 1, 0],
+      [1, 1, 1],
+      [0, 0, 0],
+    ],
+    color: '#c084fc', // Purple
+  },
+  S: {
+    shape: [
+      [0, 1, 1],
+      [1, 1, 0],
+      [0, 0, 0],
+    ],
+    color: '#4ade80', // Green
+  },
+  Z: {
+    shape: [
+      [1, 1, 0],
+      [0, 1, 1],
+      [0, 0, 0],
+    ],
+    color: '#f87171', // Red
+  },
+  J: {
+    shape: [
+      [1, 0, 0],
+      [1, 1, 1],
+      [0, 0, 0],
+    ],
+    color: '#60a5fa', // Blue
+  },
+  L: {
+    shape: [
+      [0, 0, 1],
+      [1, 1, 1],
+      [0, 0, 0],
+    ],
+    color: '#fb923c', // Orange
+  },
+};
 
-function MemoryMatchGame({
-  uploadedPhotos,
+const TETROMINO_KEYS: TetrominoType[] = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+
+function getRandomTetromino(): TetrominoType {
+  const idx = Math.floor(Math.random() * TETROMINO_KEYS.length);
+  return TETROMINO_KEYS[idx];
+}
+
+function createEmptyBoard(): (string | null)[][] {
+  return Array.from({ length: BOARD_HEIGHT }, () =>
+    Array(BOARD_WIDTH).fill(null)
+  );
+}
+
+function rotateMatrix(matrix: number[][]): number[][] {
+  const N = matrix.length;
+  const result: number[][] = Array.from({ length: N }, () => Array(N).fill(0));
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      result[c][N - 1 - r] = matrix[r][c];
+    }
+  }
+  return result;
+}
+
+function checkCollision(
+  board: (string | null)[][],
+  shape: number[][],
+  x: number,
+  y: number
+): boolean {
+  for (let r = 0; r < shape.length; r++) {
+    for (let c = 0; c < shape[r].length; c++) {
+      if (shape[r][c]) {
+        const targetX = x + c;
+        const targetY = y + r;
+        if (
+          targetX < 0 ||
+          targetX >= BOARD_WIDTH ||
+          targetY >= BOARD_HEIGHT
+        ) {
+          return true;
+        }
+        if (targetY >= 0 && board[targetY][targetX] !== null) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function TetrisGame({
   audio,
   bestScore,
   onWin,
 }: {
-  uploadedPhotos: StoredUploadedPhoto[];
   audio: AudioManager | null;
   bestScore: number;
   onWin: (score: number) => void;
 }) {
-  const createDeck = useCallback((): MatchCard[] => {
-    const customPairs = uploadedPhotos.slice(0, 3).map((p, idx) => ({
-      key: `real-photo-${idx}`,
-      label: p.caption.slice(0, 18) || 'Our Photo',
-      accent: '#f0a5b8',
-      photoSrc: p.dataUrl,
-    }));
-    const chosen: Array<{
-      key: string;
-      label: string;
-      accent: string;
-      photoSrc?: string;
-    }> = [
-      ...customPairs,
-      ...BASE_PAIRS.slice(0, 6 - customPairs.length),
-    ];
-    const doubled: MatchCard[] = [];
-    chosen.forEach((item) => {
-      doubled.push(
-        {
-          uid: `${item.key}-a-${Math.random()}`,
-          pairKey: item.key,
-          label: item.label,
-          accent: item.accent,
-          photoSrc: item.photoSrc,
-          flipped: false,
-          matched: false,
-        },
-        {
-          uid: `${item.key}-b-${Math.random()}`,
-          pairKey: item.key,
-          label: item.label,
-          accent: item.accent,
-          photoSrc: item.photoSrc,
-          flipped: false,
-          matched: false,
+  const [board, setBoard] = useState<(string | null)[][]>(createEmptyBoard);
+  const [currentPiece, setCurrentPiece] = useState<Piece | null>(null);
+  const [nextPieceType, setNextPieceType] = useState<TetrominoType>(getRandomTetromino);
+  const [score, setScore] = useState(0);
+  const [lines, setLines] = useState(0);
+  const [level, setLevel] = useState(1);
+  const [gameOver, setGameOver] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+
+  const spawnPiece = useCallback(
+    (typeToSpawn?: TetrominoType) => {
+      const type = typeToSpawn || nextPieceType;
+      const nextType = getRandomTetromino();
+      setNextPieceType(nextType);
+
+      const def = TETROMINOES[type];
+      const initialX = Math.floor((BOARD_WIDTH - def.shape[0].length) / 2);
+      const initialY = 0;
+
+      const newPiece: Piece = {
+        type,
+        shape: def.shape,
+        color: def.color,
+        x: initialX,
+        y: initialY,
+      };
+
+      // Check game over on spawn
+      setBoard((currBoard) => {
+        if (checkCollision(currBoard, newPiece.shape, newPiece.x, newPiece.y)) {
+          setGameOver(true);
+          audio?.playArcadeSFX('miss');
+          return currBoard;
         }
-      );
+        return currBoard;
+      });
+
+      setCurrentPiece(newPiece);
+    },
+    [audio, nextPieceType]
+  );
+
+  const startNewGame = useCallback(() => {
+    setBoard(createEmptyBoard());
+    setScore(0);
+    setLines(0);
+    setLevel(1);
+    setGameOver(false);
+    setIsPaused(false);
+    const firstType = getRandomTetromino();
+    const secondType = getRandomTetromino();
+    setNextPieceType(secondType);
+
+    const def = TETROMINOES[firstType];
+    const initialX = Math.floor((BOARD_WIDTH - def.shape[0].length) / 2);
+    setCurrentPiece({
+      type: firstType,
+      shape: def.shape,
+      color: def.color,
+      x: initialX,
+      y: 0,
     });
-    for (let i = doubled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [doubled[i], doubled[j]] = [doubled[j], doubled[i]];
-    }
-    return doubled;
-  }, [uploadedPhotos]);
+  }, []);
 
-  const [cards, setCards] = useState<MatchCard[]>(() => createDeck());
-  const [moves, setMoves] = useState(0);
-  const [locked, setLocked] = useState(false);
-  const [won, setWon] = useState(false);
+  // Initialize game on mount
+  useEffect(() => {
+    startNewGame();
+  }, [startNewGame]);
 
-  const handleRestart = () => {
-    setCards(createDeck());
-    setMoves(0);
-    setLocked(false);
-    setWon(false);
-  };
-
-  const handleFlip = (idx: number) => {
-    if (locked || cards[idx].flipped || cards[idx].matched) return;
-    audio?.playArcadeSFX('flip');
-
-    const next = cards.map((c, i) => (i === idx ? { ...c, flipped: true } : c));
-    const openUnmatched = next.filter((c) => c.flipped && !c.matched);
-    setCards(next);
-
-    if (openUnmatched.length === 2) {
-      const nextMoves = moves + 1;
-      setMoves(nextMoves);
-      const [first, second] = openUnmatched;
-
-      if (first.pairKey === second.pairKey) {
-        audio?.playArcadeSFX('match');
-        const matchedDeck = next.map((c) =>
-          c.pairKey === first.pairKey ? { ...c, matched: true } : c
-        );
-        setCards(matchedDeck);
-        if (matchedDeck.every((c) => c.matched)) {
-          setWon(true);
-          audio?.playArcadeSFX('win');
-          const pts = Math.max(100, 700 - nextMoves * 25);
-          onWin(pts);
+  // Lock piece into board and clear full rows
+  const lockPiece = useCallback(
+    (pieceToLock: Piece) => {
+      setBoard((prevBoard) => {
+        const nextBoard = prevBoard.map((row) => [...row]);
+        // Stamp piece
+        for (let r = 0; r < pieceToLock.shape.length; r++) {
+          for (let c = 0; c < pieceToLock.shape[r].length; c++) {
+            if (pieceToLock.shape[r][c]) {
+              const by = pieceToLock.y + r;
+              const bx = pieceToLock.x + c;
+              if (by >= 0 && by < BOARD_HEIGHT && bx >= 0 && bx < BOARD_WIDTH) {
+                nextBoard[by][bx] = pieceToLock.color;
+              }
+            }
+          }
         }
-      } else {
-        setLocked(true);
-        window.setTimeout(() => {
-          setCards((curr) =>
-            curr.map((c) => (c.matched ? c : { ...c, flipped: false }))
+
+        // Check line clears
+        const clearedRows: number[] = [];
+        for (let r = 0; r < BOARD_HEIGHT; r++) {
+          if (nextBoard[r].every((cell) => cell !== null)) {
+            clearedRows.push(r);
+          }
+        }
+
+        if (clearedRows.length > 0) {
+          audio?.playArcadeSFX(clearedRows.length >= 4 ? 'win' : 'match');
+          // Remove cleared rows and push empty rows on top
+          const remainingRows = nextBoard.filter((_, idx) => !clearedRows.includes(idx));
+          const newRows = Array.from({ length: clearedRows.length }, () =>
+            Array(BOARD_WIDTH).fill(null)
           );
-          setLocked(false);
-        }, 560);
+          const finalBoard = [...newRows, ...remainingRows];
+
+          // Score table: 100, 300, 500, 800
+          const pointMultipliers = [0, 100, 300, 500, 800];
+          const pts = (pointMultipliers[clearedRows.length] || 100) * level;
+
+          setScore((s) => {
+            const nextScore = s + pts;
+            if (nextScore > bestScore) {
+              onWin(nextScore);
+            }
+            return nextScore;
+          });
+
+          setLines((l) => {
+            const nextLines = l + clearedRows.length;
+            setLevel(Math.floor(nextLines / 6) + 1);
+            return nextLines;
+          });
+
+          return finalBoard;
+        }
+
+        audio?.playArcadeSFX('flip');
+        return nextBoard;
+      });
+
+      spawnPiece();
+    },
+    [audio, bestScore, level, onWin, spawnPiece]
+  );
+
+  // Move piece left or right
+  const moveHorizontally = useCallback(
+    (dx: -1 | 1) => {
+      if (!currentPiece || gameOver || isPaused) return;
+      if (!checkCollision(board, currentPiece.shape, currentPiece.x + dx, currentPiece.y)) {
+        setCurrentPiece((prev) => (prev ? { ...prev, x: prev.x + dx } : null));
+      }
+    },
+    [board, currentPiece, gameOver, isPaused]
+  );
+
+  // Rotate piece clockwise
+  const rotatePiece = useCallback(() => {
+    if (!currentPiece || gameOver || isPaused) return;
+    const rotated = rotateMatrix(currentPiece.shape);
+    // Wall kicks: try x, x-1, x+1, x-2, x+2
+    const kicks = [0, -1, 1, -2, 2];
+    for (const kick of kicks) {
+      if (!checkCollision(board, rotated, currentPiece.x + kick, currentPiece.y)) {
+        setCurrentPiece((prev) =>
+          prev ? { ...prev, shape: rotated, x: prev.x + kick } : null
+        );
+        audio?.playArcadeSFX('flip');
+        return;
       }
     }
-  };
+  }, [audio, board, currentPiece, gameOver, isPaused]);
+
+  // Soft drop (down 1 step)
+  const dropOne = useCallback(() => {
+    if (!currentPiece || gameOver || isPaused) return;
+    if (!checkCollision(board, currentPiece.shape, currentPiece.x, currentPiece.y + 1)) {
+      setCurrentPiece((prev) => (prev ? { ...prev, y: prev.y + 1 } : null));
+      setScore((s) => s + 1);
+    } else {
+      lockPiece(currentPiece);
+    }
+  }, [board, currentPiece, gameOver, isPaused, lockPiece]);
+
+  // Hard drop (drop straight down and lock immediately)
+  const hardDrop = useCallback(() => {
+    if (!currentPiece || gameOver || isPaused) return;
+    let targetY = currentPiece.y;
+    while (!checkCollision(board, currentPiece.shape, currentPiece.x, targetY + 1)) {
+      targetY++;
+    }
+    const droppedDistance = targetY - currentPiece.y;
+    setScore((s) => s + droppedDistance * 2);
+    const droppedPiece = { ...currentPiece, y: targetY };
+    setCurrentPiece(droppedPiece);
+    lockPiece(droppedPiece);
+  }, [board, currentPiece, gameOver, isPaused, lockPiece]);
+
+  // Calculate Ghost Piece position (landing indicator)
+  const ghostY = (() => {
+    if (!currentPiece) return 0;
+    let gy = currentPiece.y;
+    while (!checkCollision(board, currentPiece.shape, currentPiece.x, gy + 1)) {
+      gy++;
+    }
+    return gy;
+  })();
+
+  // Drop timer loop
+  useEffect(() => {
+    if (gameOver || isPaused || !currentPiece) return;
+    const dropSpeed = Math.max(160, 680 - (level - 1) * 65);
+    const interval = setInterval(() => {
+      dropOne();
+    }, dropSpeed);
+    return () => clearInterval(interval);
+  }, [dropOne, gameOver, isPaused, currentPiece, level]);
+
+  // Keyboard controls
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+      const k = e.key.toLowerCase();
+      if (k === 'arrowleft' || k === 'a') {
+        e.preventDefault();
+        moveHorizontally(-1);
+      } else if (k === 'arrowright' || k === 'd') {
+        e.preventDefault();
+        moveHorizontally(1);
+      } else if (k === 'arrowup' || k === 'w') {
+        e.preventDefault();
+        rotatePiece();
+      } else if (k === 'arrowdown' || k === 's') {
+        e.preventDefault();
+        dropOne();
+      } else if (k === ' ') {
+        e.preventDefault();
+        hardDrop();
+      } else if (k === 'p') {
+        e.preventDefault();
+        setIsPaused((p) => !p);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [dropOne, hardDrop, moveHorizontally, rotatePiece]);
+
+  // Next piece matrix
+  const nextPieceDef = TETROMINOES[nextPieceType];
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#cfc4df]">
-        <div>
-          Flip two cards to match Adi &amp; Damini’s Melbourne keepsakes!
-        </div>
+      {/* Top Banner info */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#ebd8e0]">
+        <span>Clear lines to score · 300+ pts earns the Starlight Arcade Token!</span>
         <div className="flex items-center gap-3 font-mono tabular-nums">
-          <span>Moves: {moves}</span>
-          <span>·</span>
-          <span>Best: {bestScore} pts</span>
-          <button
-            type="button"
-            onClick={handleRestart}
-            className="flex items-center gap-1 rounded-lg bg-[#352d47] px-2.5 py-1 text-[#f4ecff] hover:bg-[#463b5e] cursor-pointer whitespace-nowrap"
-          >
-            <RotateCcw className="h-3 w-3" />
-            <span>Shuffle</span>
-          </button>
+          <span className="text-[#f5caa0]">Score: {score}</span>
+          <span className="text-[#baa897]">Best: {Math.max(score, bestScore)}</span>
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-4 gap-2.5">
-        {cards.map((card, i) => {
-          const revealed = card.flipped || card.matched;
-          return (
-            <button
-              key={card.uid}
-              type="button"
-              onClick={() => handleFlip(i)}
-              className={`relative flex h-24 flex-col items-center justify-center overflow-hidden rounded-2xl border p-2 text-center transition-transform duration-150 cursor-pointer ${
-                card.matched
-                  ? 'border-[#8be0b0]/65 bg-[#233830]'
-                  : revealed
-                    ? 'border-[#f2c48d]/70 bg-[#322942]'
-                    : 'border-[#ebd7bf]/15 bg-[#231d30] hover:scale-[1.02] hover:border-[#ebd7bf]/35'
-              }`}
-            >
-              {revealed ? (
-                card.photoSrc ? (
-                  <img
-                    src={card.photoSrc}
-                    alt={card.label}
-                    className="h-full w-full rounded-xl object-cover"
-                  />
-                ) : (
-                  <>
-                    <div
-                      className="h-3.5 w-3.5 rounded-full"
-                      style={{ backgroundColor: card.accent }}
-                    />
-                    <span className="mt-1.5 text-xs font-semibold leading-tight text-[#fff6ea]">
-                      {card.label}
-                    </span>
-                  </>
-                )
-              ) : (
-                <span className="font-['Fraunces'] text-lg italic text-[#8c7da6]">
-                  ★
-                </span>
+      {/* Main Arcade Cabinet Playing Field */}
+      <div className="mt-4 flex flex-col md:flex-row items-center md:items-start justify-center gap-6">
+        {/* Tetris Board Grid */}
+        <div className="relative rounded-2xl border-2 border-[#52416b] bg-[#0c0914] p-2 shadow-2xl">
+          {/* Game Over Banner */}
+          {gameOver && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl bg-black/85 backdrop-blur-xs p-4 text-center">
+              <div className="font-['Fraunces'] text-2xl font-bold text-[#f87171]">
+                Game Over
+              </div>
+              <p className="mt-1 text-xs text-[#e8d5be]">
+                Final Score: <span className="font-mono font-bold text-[#f5caa0]">{score}</span>
+              </p>
+              {score >= 300 && (
+                <div className="mt-2 flex items-center gap-1.5 rounded-full bg-[#f5caa0]/20 px-3 py-1 text-xs font-semibold text-[#f5caa0]">
+                  <Trophy className="h-3.5 w-3.5" />
+                  <span>Starlight Token Won!</span>
+                </div>
               )}
-            </button>
-          );
-        })}
+              <button
+                type="button"
+                onClick={startNewGame}
+                className="mt-4 rounded-xl bg-[#e69a7b] px-5 py-2 text-xs font-bold text-[#1f1613] hover:bg-[#f2ab8d] transition-transform active:scale-95 cursor-pointer shadow-lg"
+              >
+                Play Again
+              </button>
+            </div>
+          )}
+
+          {/* Pause overlay */}
+          {isPaused && !gameOver && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl bg-black/80 backdrop-blur-xs text-center">
+              <div className="font-['Fraunces'] text-xl font-bold text-[#f5caa0]">
+                Paused
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPaused(false)}
+                className="mt-3 rounded-xl bg-[#60a5fa] px-4 py-1.5 text-xs font-semibold text-[#0f172a] hover:bg-[#93c5fd] cursor-pointer"
+              >
+                Resume (P)
+              </button>
+            </div>
+          )}
+
+          {/* 10 x 20 Cell Grid */}
+          <div
+            className="grid grid-cols-10 gap-[1.5px] bg-[#161224] p-[1.5px] rounded-lg"
+            style={{ width: '220px', height: '440px' }}
+          >
+            {board.map((row, r) =>
+              row.map((cellColor, c) => {
+                // Check if current active piece is in this cell
+                let isCurrentPiece = false;
+                let activeColor = cellColor;
+                if (currentPiece) {
+                  const pr = r - currentPiece.y;
+                  const pc = c - currentPiece.x;
+                  if (
+                    pr >= 0 &&
+                    pr < currentPiece.shape.length &&
+                    pc >= 0 &&
+                    pc < currentPiece.shape[pr].length &&
+                    currentPiece.shape[pr][pc]
+                  ) {
+                    isCurrentPiece = true;
+                    activeColor = currentPiece.color;
+                  }
+                }
+
+                // Check if ghost piece is in this cell
+                let isGhost = false;
+                if (currentPiece && !isCurrentPiece && ghostY !== currentPiece.y) {
+                  const gr = r - ghostY;
+                  const gc = c - currentPiece.x;
+                  if (
+                    gr >= 0 &&
+                    gr < currentPiece.shape.length &&
+                    gc >= 0 &&
+                    gc < currentPiece.shape[gr].length &&
+                    currentPiece.shape[gr][gc]
+                  ) {
+                    isGhost = true;
+                  }
+                }
+
+                return (
+                  <div
+                    key={`${r}-${c}`}
+                    className={`h-[20px] w-[20px] rounded-[3px] transition-colors duration-75 ${
+                      activeColor
+                        ? 'border border-white/20 shadow-xs'
+                        : isGhost
+                          ? 'border border-dashed border-white/25 bg-white/5'
+                          : 'bg-[#120e1e]'
+                    }`}
+                    style={{
+                      backgroundColor: activeColor || undefined,
+                    }}
+                  />
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Side Panel: Next Piece, Stats & Legend */}
+        <div className="flex flex-col gap-4 w-52 text-xs">
+          {/* Next Piece Card */}
+          <div className="rounded-2xl border border-[#ebd7bf]/15 bg-[#171324] p-3.5">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#baa897]">
+              Next Tetromino
+            </span>
+            <div className="mt-2.5 flex h-20 items-center justify-center rounded-xl bg-[#0e0a17]">
+              <div
+                className="grid gap-1"
+                style={{
+                  gridTemplateColumns: `repeat(${nextPieceDef.shape[0].length}, minmax(0, 1fr))`,
+                }}
+              >
+                {nextPieceDef.shape.map((row, r) =>
+                  row.map((active, c) => (
+                    <div
+                      key={`next-${r}-${c}`}
+                      className="h-4 w-4 rounded-xs"
+                      style={{
+                        backgroundColor: active ? nextPieceDef.color : 'transparent',
+                      }}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Stats: Level, Lines */}
+          <div className="rounded-2xl border border-[#ebd7bf]/15 bg-[#171324] p-3.5 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[#baa897]">Level</span>
+              <span className="font-mono font-bold text-[#f5caa0]">{level}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[#baa897]">Lines Cleared</span>
+              <span className="font-mono font-bold text-[#8ed4a8]">{lines}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[#baa897]">Best Run</span>
+              <span className="font-mono text-[#e69a7b]">{bestScore}</span>
+            </div>
+          </div>
+
+          {/* Keyboard Controls Legend */}
+          <div className="rounded-2xl border border-[#ebd7bf]/15 bg-[#171324] p-3 text-[11px] text-[#b0a4be] flex flex-col gap-1.5">
+            <div className="flex justify-between">
+              <span className="font-mono text-[#f5caa0]">A / D / ← / →</span>
+              <span>Move</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-mono text-[#f5caa0]">W / ↑</span>
+              <span>Rotate</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-mono text-[#f5caa0]">S / ↓</span>
+              <span>Soft Drop</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-mono text-[#f5caa0]">Space</span>
+              <span>Hard Drop</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {won && (
-        <div className="mt-4 flex items-center justify-between rounded-2xl border border-[#8be0b0]/45 bg-[#1d3328] px-4 py-3 text-xs text-[#eafff2]">
-          <div className="flex items-center gap-2 font-semibold">
-            <Trophy className="h-4 w-4 text-[#f5cf70]" />
-            <span>
-              Cleared in {moves} moves! Starlight Photo Strip Token unlocked!
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={handleRestart}
-            className="rounded-lg bg-[#8be0b0] px-3 py-1.5 font-semibold text-[#15261d] cursor-pointer whitespace-nowrap"
-          >
-            Play Again
-          </button>
-        </div>
-      )}
+      {/* Touch / Mouse On-Screen Action Pad for easy playing */}
+      <div className="mt-4 flex items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={() => moveHorizontally(-1)}
+          className="flex items-center justify-center rounded-xl border border-[#ebd7bf]/20 bg-[#2b213d] p-3 text-white hover:bg-[#3b2e54] active:scale-95 cursor-pointer shadow-md"
+          title="Move Left (A / ←)"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={rotatePiece}
+          className="flex items-center gap-1.5 rounded-xl border border-[#c084fc]/50 bg-[#3d2757] px-4 py-3 text-xs font-bold text-[#f3e8ff] hover:bg-[#4f3370] active:scale-95 cursor-pointer shadow-md"
+          title="Rotate (W / ↑)"
+        >
+          <RotateCw className="h-4 w-4" />
+          <span>Rotate</span>
+        </button>
+        <button
+          type="button"
+          onClick={dropOne}
+          className="flex items-center justify-center rounded-xl border border-[#ebd7bf]/20 bg-[#2b213d] p-3 text-white hover:bg-[#3b2e54] active:scale-95 cursor-pointer shadow-md"
+          title="Soft Drop (S / ↓)"
+        >
+          <ArrowDown className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={hardDrop}
+          className="flex items-center gap-1.5 rounded-xl bg-[#e69a7b] px-5 py-3 text-xs font-bold text-[#1f1613] hover:bg-[#f2ab8d] active:scale-95 cursor-pointer shadow-lg"
+          title="Hard Drop (Space)"
+        >
+          <Zap className="h-4 w-4 fill-current" />
+          <span>Hard Drop</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => moveHorizontally(1)}
+          className="flex items-center justify-center rounded-xl border border-[#ebd7bf]/20 bg-[#2b213d] p-3 text-white hover:bg-[#3b2e54] active:scale-95 cursor-pointer shadow-md"
+          title="Move Right (D / →)"
+        >
+          <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 }
 
 // ============================================================================
-// MINIGAME B — DAMINI'S CRICKET CHALLENGE (Timing-Based Batting!)
+// MINIGAME: CRICKET CHALLENGE (Inspired by Damini's Batting)
 // ============================================================================
+const TOTAL_BALLS = 6;
+
 function CricketChallengeGame({
   audio,
   bestScore,
@@ -248,55 +656,55 @@ function CricketChallengeGame({
   bestScore: number;
   onWin: (runs: number) => void;
 }) {
-  const TOTAL_BALLS = 6;
-  const [ballPos, setBallPos] = useState(0); // 0 (bowler) -> 100 (stumps), sweet spot: 76..88
-  const [ballActive, setBallActive] = useState(false);
-  const [ballsBowled, setBallsBowled] = useState(0);
   const [runs, setRuns] = useState(0);
-  const [lastCall, setLastCall] = useState(
-    'Step up to the crease! Press Space or Swing Bat when the ball enters the golden zone.'
-  );
+  const [ballsBowled, setBallsBowled] = useState(0);
+  const [ballActive, setBallActive] = useState(false);
+  const [ballPos, setBallPos] = useState(0); // 0 (bowler) -> 100 (wicket)
+  const [lastCall, setLastCall] = useState('Press Start Over to bowl delivery 1!');
   const [overComplete, setOverComplete] = useState(false);
-  const speedRef = useRef(68);
+
+  const speedRef = useRef(115);
   const swungRef = useRef(false);
 
-  const launchNextBall = useCallback(() => {
+  const startDelivery = useCallback(() => {
     swungRef.current = false;
-    speedRef.current = 58 + Math.random() * 34; // Varied pace deliveries!
     setBallPos(0);
+    speedRef.current = 100 + Math.random() * 32;
     setBallActive(true);
+    setLastCall('Ball on its way! Watch the pitch and time the drive!');
   }, []);
 
-  const startNewOver = () => {
+  const startNewOver = useCallback(() => {
     setRuns(0);
     setBallsBowled(0);
     setOverComplete(false);
-    setLastCall('Bowler running in… watch the ball onto the willow!');
-    launchNextBall();
-  };
+    startDelivery();
+  }, [startDelivery]);
 
   const finishDelivery = useCallback(
-    (earnedRuns: number, commentary: string) => {
+    (scoredRuns: number, commentary: string) => {
       setBallActive(false);
-      const nextRuns = runs + earnedRuns;
-      const nextBalls = ballsBowled + 1;
-      setRuns(nextRuns);
-      setBallsBowled(nextBalls);
+      setRuns((r) => r + scoredRuns);
       setLastCall(commentary);
 
-      if (nextBalls >= TOTAL_BALLS) {
-        setOverComplete(true);
-        if (nextRuns >= 12) {
-          audio?.playArcadeSFX('win');
+      setBallsBowled((b) => {
+        const nextB = b + 1;
+        if (nextB >= TOTAL_BALLS) {
+          setOverComplete(true);
+          const finalRuns = runs + scoredRuns;
+          onWin(finalRuns);
+          if (finalRuns >= 12) {
+            audio?.playArcadeSFX('win');
+          }
+        } else {
+          window.setTimeout(() => {
+            startDelivery();
+          }, 950);
         }
-        onWin(nextRuns);
-      } else {
-        window.setTimeout(() => {
-          launchNextBall();
-        }, 850);
-      }
+        return nextB;
+      });
     },
-    [audio, ballsBowled, launchNextBall, onWin, runs]
+    [audio, onWin, runs, startDelivery]
   );
 
   useEffect(() => {
@@ -362,7 +770,7 @@ function CricketChallengeGame({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  });
+  }, [ballActive, ballsBowled, overComplete, startNewOver, swingBat]);
 
   return (
     <div>
@@ -445,232 +853,11 @@ function CricketChallengeGame({
 }
 
 // ============================================================================
-// MINIGAME C — STARLIGHT CLAW MACHINE (Collectible Plush Catcher!)
-// ============================================================================
-interface ClawPrize {
-  id: string;
-  name: string;
-  x: number; // 14 .. 86
-  color: string;
-  caught: boolean;
-}
-
-function ClawMachineGame({
-  audio,
-  bestScore,
-  onWin,
-}: {
-  audio: AudioManager | null;
-  bestScore: number;
-  onWin: (caughtCount: number) => void;
-}) {
-  const initialPrizes = useMemo<ClawPrize[]>(
-    () => [
-      { id: 'p1', name: 'Golden Pup Plush', x: 20, color: '#f2c464', caught: false },
-      { id: 'p2', name: 'Mini W-Class Tram', x: 38, color: '#6fd49b', caught: false },
-      { id: 'p3', name: 'Velvet Heart Cushion', x: 56, color: '#eb8ca5', caught: false },
-      { id: 'p4', name: 'Gnocchi Dumpling Plush', x: 73, color: '#f5dec0', caught: false },
-      { id: 'p5', name: 'Starlight Bell Charm', x: 86, color: '#8ad4e6', caught: false },
-    ],
-    []
-  );
-
-  const [prizes, setPrizes] = useState<ClawPrize[]>(initialPrizes);
-  const [clawX, setClawX] = useState(50);
-  const [clawY, setClawY] = useState(0); // 0 top -> 76 bottom
-  const [phase, setPhase] = useState<'aiming' | 'dropping' | 'lifting'>('aiming');
-  const [holdingId, setHoldingId] = useState<string | null>(null);
-  const [statusMsg, setStatusMsg] = useState(
-    'Use A / D (or Left / Right buttons) to position the crane, then press Space to drop!'
-  );
-
-  const moveClaw = useCallback(
-    (dir: -1 | 1) => {
-      if (phase !== 'aiming') return;
-      setClawX((x) => Math.max(14, Math.min(88, x + dir * 5)));
-    },
-    [phase]
-  );
-
-  const dropClaw = useCallback(() => {
-    if (phase !== 'aiming') return;
-    audio?.playArcadeSFX('flip');
-    setPhase('dropping');
-  }, [audio, phase]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const k = e.key.toLowerCase();
-      if (k === 'a' || k === 'arrowleft') moveClaw(-1);
-      else if (k === 'd' || k === 'arrowright') moveClaw(1);
-      else if (k === ' ') {
-        e.preventDefault();
-        dropClaw();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [dropClaw, moveClaw]);
-
-  useEffect(() => {
-    if (phase === 'aiming') return;
-    let raf = 0;
-    let last = performance.now();
-
-    const step = (now: number) => {
-      const dt = Math.min((now - last) / 1000, 0.05);
-      last = now;
-
-      if (phase === 'dropping') {
-        setClawY((y) => {
-          const ny = y + 95 * dt;
-          if (ny >= 74) {
-            // Check prize grab!
-            const target = prizes.find(
-              (p) => !p.caught && Math.abs(p.x - clawX) <= 6.5
-            );
-            if (target) {
-              setHoldingId(target.id);
-              audio?.playArcadeSFX('match');
-              setStatusMsg(`Got a grip on ${target.name}! Lifting gently…`);
-            } else {
-              audio?.playArcadeSFX('miss');
-              setStatusMsg('Claw closed on thin air — line up directly over a plush!');
-            }
-            setPhase('lifting');
-            return 74;
-          }
-          return ny;
-        });
-      } else if (phase === 'lifting') {
-        setClawY((y) => {
-          const ny = y - 85 * dt;
-          if (ny <= 0) {
-            if (holdingId) {
-              setPrizes((curr) => {
-                const updated = curr.map((p) =>
-                  p.id === holdingId ? { ...p, caught: true } : p
-                );
-                const caughtTotal = updated.filter((p) => p.caught).length;
-                audio?.playArcadeSFX('win');
-                setStatusMsg(
-                  `Caught! (${caughtTotal} prize${caughtTotal > 1 ? 's' : ''} won for Damini!)`
-                );
-                onWin(caughtTotal);
-                return updated;
-              });
-              setHoldingId(null);
-            }
-            setPhase('aiming');
-            return 0;
-          }
-          return ny;
-        });
-      }
-
-      raf = requestAnimationFrame(step);
-    };
-
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [audio, clawX, holdingId, onWin, phase, prizes]);
-
-  const caughtCount = prizes.filter((p) => p.caught).length;
-
-  return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#ebd2d8]">
-        <span>Catch any plush capsule to unlock the Starlight Claw Keepsake!</span>
-        <span className="font-mono tabular-nums">
-          Caught: {caughtCount}/{prizes.length} · Best: {bestScore}
-        </span>
-      </div>
-
-      {/* Glass Crane Cabinet */}
-      <div className="relative mt-4 h-48 overflow-hidden rounded-2xl border border-[#f29f8a]/35 bg-[#1f1929]">
-        {/* Top brass rail */}
-        <div className="h-2.5 w-full bg-[#bd9248]" />
-
-        {/* Crane Cable + Prongs */}
-        <div
-          style={{ left: `${clawX}%` }}
-          className="absolute top-2.5 -translate-x-1/2 flex flex-col items-center"
-        >
-          <div
-            style={{ height: `${14 + clawY * 1.35}px` }}
-            className="w-0.5 bg-[#e6c37a]"
-          />
-          <div className="h-4 w-7 rounded-b-lg border-2 border-t-0 border-[#f5d58e]" />
-          {holdingId && (
-            <div
-              className="mt-[-4px] h-7 w-7 rounded-full border-2 border-white/50 shadow"
-              style={{
-                backgroundColor:
-                  prizes.find((p) => p.id === holdingId)?.color ?? '#f2c464',
-              }}
-            />
-          )}
-        </div>
-
-        {/* Plush Prizes along cabinet floor */}
-        {prizes.map((p) => {
-          if (p.caught || p.id === holdingId) return null;
-          return (
-            <div
-              key={p.id}
-              style={{ left: `${p.x}%`, backgroundColor: p.color }}
-              title={p.name}
-              className="absolute bottom-3 h-8 w-8 -translate-x-1/2 rounded-full border-2 border-white/45 shadow-md"
-            />
-          );
-        })}
-      </div>
-
-      <p className="mt-2.5 text-center text-xs text-[#e8d6dc]">{statusMsg}</p>
-
-      <div className="mt-3 flex items-center justify-center gap-2.5">
-        <button
-          type="button"
-          onClick={() => moveClaw(-1)}
-          className="rounded-xl border border-[#ebd7bf]/20 bg-[#2e253b] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#3c314d] cursor-pointer whitespace-nowrap"
-        >
-          ← Move Left (A)
-        </button>
-        <button
-          type="button"
-          onClick={dropClaw}
-          className="rounded-xl bg-[#f0937d] px-6 py-2.5 text-xs font-semibold text-[#211310] hover:bg-[#f7a692] cursor-pointer whitespace-nowrap"
-        >
-          Drop Claw! (Space)
-        </button>
-        <button
-          type="button"
-          onClick={() => moveClaw(1)}
-          className="rounded-xl border border-[#ebd7bf]/20 bg-[#2e253b] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#3c314d] cursor-pointer whitespace-nowrap"
-        >
-          Move Right (D) →
-        </button>
-        {caughtCount === prizes.length && (
-          <button
-            type="button"
-            onClick={() => setPrizes(initialPrizes)}
-            className="rounded-xl bg-[#7cd4b2] px-3.5 py-2.5 text-xs font-semibold text-[#13241d] cursor-pointer whitespace-nowrap"
-          >
-            Restock
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
 // MASTER ARCADE CABINET MODAL
 // ============================================================================
 export function ArcadeMinigameModal({
   activeGame,
   saveData,
-  uploadedPhotos,
   audio,
   onSwitchGame,
   onRecordResult,
@@ -687,13 +874,17 @@ export function ArcadeMinigameModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Default to 'tetris' if invalid or previous minigame passed
+  const currentTab: MinigameId =
+    activeGame === 'cricket-challenge' ? 'cricket-challenge' : 'tetris';
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-4 pointer-events-auto">
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-[#f2b880]/30 bg-[#191524] p-6 text-[#faf3eb] shadow-2xl"
+        className="max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-[#f2b880]/30 bg-[#191524] p-5 sm:p-6 text-[#faf3eb] shadow-2xl"
       >
         <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
           <div>
@@ -720,9 +911,8 @@ export function ArcadeMinigameModal({
         <div className="mt-4 flex items-center gap-1.5 rounded-xl bg-[#110e1a] p-1">
           {(
             [
-              ['memory-match', 'Memory Match'],
+              ['tetris', 'Starlight Tetris'],
               ['cricket-challenge', 'Damini’s Cricket Challenge'],
-              ['claw-machine', 'Starlight Claw Machine'],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -730,7 +920,7 @@ export function ArcadeMinigameModal({
               type="button"
               onClick={() => onSwitchGame(id)}
               className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-                activeGame === id
+                currentTab === id
                   ? 'bg-[#342b4a] text-[#fff6ea] shadow-sm'
                   : 'text-[#a59bb8] hover:text-white'
               }`}
@@ -741,18 +931,21 @@ export function ArcadeMinigameModal({
         </div>
 
         <div className="mt-5">
-          {activeGame === 'memory-match' && (
-            <MemoryMatchGame
-              uploadedPhotos={uploadedPhotos}
+          {currentTab === 'tetris' && (
+            <TetrisGame
               audio={audio}
-              bestScore={saveData.minigameHighScores['memory-match'] ?? 0}
+              bestScore={saveData.minigameHighScores['tetris'] ?? 0}
               onWin={(pts) =>
-                onRecordResult('memory-match', pts, 'keepsake-arcade-match')
+                onRecordResult(
+                  'tetris',
+                  pts,
+                  pts >= 300 ? 'keepsake-arcade-match' : undefined
+                )
               }
             />
           )}
 
-          {activeGame === 'cricket-challenge' && (
+          {currentTab === 'cricket-challenge' && (
             <CricketChallengeGame
               audio={audio}
               bestScore={saveData.minigameHighScores['cricket-challenge'] ?? 0}
@@ -762,16 +955,6 @@ export function ArcadeMinigameModal({
                   runs,
                   runs >= 12 ? 'keepsake-cricket-bat' : undefined
                 )
-              }
-            />
-          )}
-
-          {activeGame === 'claw-machine' && (
-            <ClawMachineGame
-              audio={audio}
-              bestScore={saveData.minigameHighScores['claw-machine'] ?? 0}
-              onWin={(count) =>
-                onRecordResult('claw-machine', count, 'keepsake-claw-plush')
               }
             />
           )}

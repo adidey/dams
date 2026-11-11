@@ -297,7 +297,7 @@ export const POINTS_OF_INTEREST: PointOfInterest[] = [
     radius: 5.0,
     promptLabel: 'Enter Starlight Arcade',
     journalDescription:
-      'Glowing marquees and three playable cabinets: Memory Match, Damini’s Cricket Challenge, and the Starlight Claw Machine.',
+      'Glowing neon marquees and playable arcade cabinets: Starlight Tetris and Damini’s Cricket Challenge.',
     dialogue: [],
   },
   {

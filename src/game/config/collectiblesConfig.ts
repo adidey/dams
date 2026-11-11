@@ -93,9 +93,9 @@ export const COLLECTIBLES_CONFIG: CollectibleItem[] = [
   },
   {
     id: 'keepsake-arcade-match',
-    name: 'Starlight Photo Booth Strip Token',
-    sourceLabel: 'Arcade · Memory Match',
-    description: 'Won at the Memory Match cabinet in Arcade Alley.',
+    name: 'Starlight Tetris High Score Token',
+    sourceLabel: 'Arcade · Starlight Tetris',
+    description: 'Awarded for stacking lines and clearing bricks in Starlight Tetris.',
     category: 'arcade',
     accentHex: '#7cc4b8',
     iconKey: 'arcade-card',

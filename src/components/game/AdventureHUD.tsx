@@ -1,32 +1,25 @@
 import {
   BookHeart,
   Camera,
-  ChevronLeft,
-  ChevronRight,
-  Compass,
   Disc3,
   Heart,
-  HelpCircle,
   ListMusic,
   LogOut,
   Map as MapIcon,
-  MapPin,
+  Moon,
   Music,
   Pause,
   Play,
-  RotateCcw,
-  RotateCw,
   Shuffle,
   SkipBack,
   SkipForward,
   SlidersHorizontal,
   Sparkles,
+  Sun,
   TrainFront,
   Volume2,
   VolumeX,
   X,
-  ZoomIn,
-  ZoomOut,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
@@ -111,12 +104,8 @@ export function AdventureHUD({
   onRotateStep,
   onExitInterior,
 }: AdventureHUDProps) {
-  // Collapsible Objectives Drawer
-  const [objectivesOpen, setObjectivesOpen] = useState(false);
   // Playlist dropdown
   const [playlistOpen, setPlaylistOpen] = useState(false);
-  // Help Modal / Popover
-  const [showHelp, setShowHelp] = useState(false);
 
   const completedCoreCount = CORE_MEMORY_IDS.filter((id) =>
     saveData.completedMemoryIds.includes(id)
@@ -126,26 +115,18 @@ export function AdventureHUD({
 
   // Determine current chapter & next recommendation
   let currentChapterNumber = 1;
-  let currentChapterTitle = 'International House';
-  let nextSuggestedDestination = 'International House (Parkville)';
 
   for (const poi of POINTS_OF_INTEREST) {
     if (poi.category === 'memory' && !saveData.completedMemoryIds.includes(poi.id)) {
       currentChapterNumber = poi.chapterNumber || 1;
-      currentChapterTitle = poi.title;
-      nextSuggestedDestination = `${poi.title} (${DISTRICT_TITLES[poi.district].split('·')[0].trim()})`;
       break;
     }
   }
 
   if (allCoreDone && !finalDone) {
     currentChapterNumber = 6;
-    currentChapterTitle = 'Twilight Overlook';
-    nextSuggestedDestination = 'Yarra River Twilight Overlook (Southbank)';
   } else if (finalDone) {
     currentChapterNumber = 6;
-    currentChapterTitle = 'Our Melbourne Dreamland';
-    nextSuggestedDestination = 'Free exploration with Damini & Sunny';
   }
 
   const interiorTitle =
@@ -155,7 +136,7 @@ export function AdventureHUD({
         ? 'Inside Starlight Coin-Op Arcade'
         : DISTRICT_TITLES[activeDistrict];
 
-  // Hotkey listener for C (Camera/Photobooth), N (Next Song), O (Objectives), ? (Help)
+  // Hotkey listener for C (Camera/Photobooth), N (Next Song)
   // S key is NOT intercepted so WASD walking is completely free!
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -172,12 +153,6 @@ export function AdventureHUD({
       } else if (k === 'n' && !anyModalOpen) {
         e.preventDefault();
         onNextTrack();
-      } else if (k === 'o' && !anyModalOpen) {
-        e.preventDefault();
-        setObjectivesOpen((prev) => !prev);
-      } else if (k === '?' && !anyModalOpen) {
-        e.preventDefault();
-        setShowHelp((prev) => !prev);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -356,91 +331,7 @@ export function AdventureHUD({
         )}
       </header>
 
-      {/* =====================================================================
-          3. RIGHT-SIDE: OBJECTIVES PANEL (Collapsible)
-         ===================================================================== */}
-      <aside className="pointer-events-auto absolute right-4 top-4 flex flex-col items-end">
-        {/* Toggle Icon */}
-        <button
-          type="button"
-          onClick={() => setObjectivesOpen((prev) => !prev)}
-          className="flex items-center gap-1.5 rounded-2xl border border-[#ebd7bf]/20 bg-[#1e1715]/92 px-3 py-2 text-xs font-semibold text-[#f7efe2] shadow-xl hover:bg-[#281f1b] transition-colors cursor-pointer"
-          title="Toggle Objectives Panel (O)"
-        >
-          <Compass className="h-4 w-4 text-[#f2be82]" />
-          <span className="hidden sm:inline">Objectives</span>
-          {objectivesOpen ? (
-            <ChevronRight className="h-3.5 w-3.5 text-[#baa897]" />
-          ) : (
-            <ChevronLeft className="h-3.5 w-3.5 text-[#baa897]" />
-          )}
-        </button>
 
-        {/* Expanded Objectives Drawer */}
-        {objectivesOpen && (
-          <div className="mt-2 w-72 rounded-3xl border border-[#ebd7bf]/20 bg-[#1e1715]/95 p-4 text-[#f7efe2] shadow-2xl backdrop-blur-xs">
-            {/* Current Objective */}
-            <div className="border-b border-[#ebd7bf]/15 pb-3">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-[#baa897]">
-                Current Objective
-              </span>
-              <p className="mt-1 text-xs font-semibold leading-relaxed text-[#fbf2e3]">
-                {finalDone
-                  ? 'All Chapters Revisited · Free exploration of Melbourne together!'
-                  : allCoreDone
-                    ? 'Final Overlook Unlocked · Meet at Yarra River Twilight Overlook'
-                    : `Explore Melbourne together · Chapter ${currentChapterNumber}: ${currentChapterTitle}`}
-              </p>
-            </div>
-
-            {/* Suggested Next Destination */}
-            <div className="border-b border-[#ebd7bf]/15 py-2.5">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-[#baa897]">
-                Next Destination
-              </span>
-              <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-[#f5caa0]">
-                <MapPin className="h-3.5 w-3.5 shrink-0 text-[#e69a7b]" />
-                <span className="truncate">{nextSuggestedDestination}</span>
-              </div>
-            </div>
-
-            {/* Core Memories Checklist */}
-            <div className="pt-2.5">
-              <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-[#baa897]">
-                <span>Memories Collected</span>
-                <span className="text-[#f5caa0]">{completedCoreCount} / 5</span>
-              </div>
-
-              <div className="mt-2 flex flex-col gap-1.5">
-                {POINTS_OF_INTEREST.filter((p) => p.category === 'memory').map((p) => {
-                  const done = saveData.completedMemoryIds.includes(p.id);
-                  return (
-                    <div
-                      key={p.id}
-                      className="flex items-center justify-between text-xs"
-                    >
-                      <span
-                        className={
-                          done ? 'text-[#a89887] line-through' : 'text-[#fbf3e6]'
-                        }
-                      >
-                        {p.title}
-                      </span>
-                      {done ? (
-                        <span className="rounded-full bg-[#41533e] px-1.5 py-0.2 text-[9px] font-semibold text-[#a3e0a8]">
-                          Done
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-[#f2be82]">Open</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-      </aside>
 
       {/* =====================================================================
           4. ACTIVE MELBOURNE TRAM JOURNEY BANNER
@@ -634,44 +525,31 @@ export function AdventureHUD({
               <span className="hidden sm:inline">Map</span>
             </button>
 
-            {/* Divider */}
-            <div className="h-6 w-px bg-[#ebd7bf]/15" />
-
-            {/* Camera Zoom / Rotate Mini controls */}
-            <div className="hidden md:flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={() => onRotateStep(-1)}
-                title="Rotate -45° ([)"
-                className="rounded-lg p-1.5 text-[#cbbba7] hover:bg-[#2c241f] hover:text-[#fff5e6] cursor-pointer"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onZoomStep(1.18)}
-                title="Zoom in (+)"
-                className="rounded-lg p-1.5 text-[#cbbba7] hover:bg-[#2c241f] hover:text-[#fff5e6] cursor-pointer"
-              >
-                <ZoomIn className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onZoomStep(0.84)}
-                title="Zoom out (-)"
-                className="rounded-lg p-1.5 text-[#cbbba7] hover:bg-[#2c241f] hover:text-[#fff5e6] cursor-pointer"
-              >
-                <ZoomOut className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onRotateStep(1)}
-                title="Rotate +45° (])"
-                className="rounded-lg p-1.5 text-[#cbbba7] hover:bg-[#2c241f] hover:text-[#fff5e6] cursor-pointer"
-              >
-                <RotateCw className="h-3.5 w-3.5" />
-              </button>
-            </div>
+            {/* Weather / Lighting Atmosphere Toggle */}
+            <button
+              type="button"
+              onClick={() =>
+                onChangeLighting(
+                  lightingPreset === 'golden-hour' ? 'laneway-dusk' : 'golden-hour'
+                )
+              }
+              className="flex items-center gap-1.5 rounded-xl border border-[#ebd7bf]/15 bg-[#29201c] px-3 py-2 text-xs font-medium text-[#f3e7d6] hover:bg-[#382b26] transition-colors cursor-pointer whitespace-nowrap"
+              title={`Switch lighting to ${
+                lightingPreset === 'golden-hour' ? 'Laneway Dusk' : 'Golden Hour'
+              }`}
+            >
+              {lightingPreset === 'golden-hour' ? (
+                <>
+                  <Sun className="h-3.5 w-3.5 text-[#f59e0b]" />
+                  <span className="hidden sm:inline">Golden Hour</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="h-3.5 w-3.5 text-[#a78bfa]" />
+                  <span className="hidden sm:inline">Laneway Dusk</span>
+                </>
+              )}
+            </button>
 
             {/* Audio Mute */}
             <button
@@ -687,16 +565,6 @@ export function AdventureHUD({
               )}
             </button>
 
-            {/* Controls Help (?) */}
-            <button
-              type="button"
-              onClick={() => setShowHelp((prev) => !prev)}
-              title="Keyboard Shortcuts (?)"
-              className="rounded-xl border border-[#ebd7bf]/15 bg-[#29201c] p-2 text-xs font-medium text-[#cbbba7] hover:bg-[#382b26] hover:text-[#fff5e6] cursor-pointer"
-            >
-              <HelpCircle className="h-3.5 w-3.5" />
-            </button>
-
             {/* Pause Settings Menu */}
             <button
               type="button"
@@ -706,37 +574,6 @@ export function AdventureHUD({
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* =====================================================================
-          6. SHORTCUTS & HELP POPOVER (Collapsible, non-permanent)
-         ===================================================================== */}
-      {showHelp && (
-        <div className="pointer-events-auto fixed bottom-20 left-1/2 -translate-x-1/2 w-80 rounded-2xl border border-[#ebd7bf]/25 bg-[#1e1715]/95 p-4 text-[#f7efe2] shadow-2xl backdrop-blur-xs">
-          <div className="flex items-center justify-between border-b border-[#ebd7bf]/15 pb-2">
-            <span className="font-['Fraunces'] text-xs font-bold text-[#fbf2e3]">
-              Explorer Controls
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowHelp(false)}
-              className="text-[#baa897] hover:text-[#fff5e6]"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <div className="mt-2.5 grid grid-cols-2 gap-y-1.5 gap-x-2 text-[11px] text-[#baa897]">
-            <div><span className="font-mono text-[#f5caa0]">WASD / Arrows</span>: Walk</div>
-            <div><span className="font-mono text-[#f5caa0]">E</span>: Interact</div>
-            <div><span className="font-mono text-[#f5caa0]">J</span>: Journal</div>
-            <div><span className="font-mono text-[#f5caa0]">I</span>: Keepsakes</div>
-            <div><span className="font-mono text-[#f5caa0]">C</span>: Photo Booth</div>
-            <div><span className="font-mono text-[#f5caa0]">O</span>: Objectives</div>
-            <div><span className="font-mono text-[#f5caa0]">M</span>: Music Toggle</div>
-            <div><span className="font-mono text-[#f5caa0]">N</span>: Next Song</div>
-            <div><span className="font-mono text-[#f5caa0]">Esc</span>: Pause Menu</div>
           </div>
         </div>
       )}

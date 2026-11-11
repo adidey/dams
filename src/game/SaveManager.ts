@@ -10,6 +10,7 @@ export function createDefaultSaveData(): GameSaveData {
     pettedSunnyCount: 0,
     playedTrackIds: [],
     minigameHighScores: {
+      tetris: 0,
       'memory-match': 0,
       'cricket-challenge': 0,
       'claw-machine': 0,

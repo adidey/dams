@@ -128,7 +128,7 @@ export class WorldScene {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
     this.renderer.setPixelRatio(
-      this.isSoftwareGl ? 1 : Math.min(window.devicePixelRatio, 2)
+      this.isSoftwareGl ? 1 : Math.min(window.devicePixelRatio, 1.25)
     );
     this.renderer.setSize(width, height);
     this.renderer.shadowMap.enabled = !this.isSoftwareGl;

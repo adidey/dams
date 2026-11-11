@@ -36,7 +36,11 @@ export interface PhotoSticker {
 
 export type ActiveInteriorId = 'vinyl-cafe' | 'arcade' | null;
 
-export type MinigameId = 'memory-match' | 'cricket-challenge' | 'claw-machine';
+export type MinigameId =
+  | 'tetris'
+  | 'cricket-challenge'
+  | 'memory-match'
+  | 'claw-machine';
 
 export interface DialogueLine {
   speaker: 'Adi' | 'Damini' | 'Together' | 'Sunny';
@@ -168,6 +172,7 @@ export interface InteriorInteractablePrompt {
     | 'exit-interior'
     | 'turntable'
     | 'cafe-barista'
+    | 'minigame-tetris'
     | 'minigame-memory'
     | 'minigame-cricket'
     | 'minigame-claw';

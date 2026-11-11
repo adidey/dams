@@ -37,7 +37,7 @@ export class LightingSystem {
     this.sunLight = new THREE.DirectionalLight(0xffcf8c, 2.35);
     this.sunLight.position.copy(this.sunOffset);
     this.sunLight.castShadow = !isSoftwareGl;
-    this.sunLight.shadow.mapSize.set(2048, 2048);
+    this.sunLight.shadow.mapSize.set(1024, 1024);
 
     const d = 78;
     this.sunLight.shadow.camera.left = -d;
